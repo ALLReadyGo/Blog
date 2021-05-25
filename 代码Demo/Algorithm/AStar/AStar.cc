@@ -4,6 +4,47 @@
 #include <cmath>
 #include <array>
 #include <iostream>
+#include <tuple>
+#include <algorithm>
+
+class Path
+{   
+  public:
+    void pushNode(int32_t x, int32_t y)
+    {
+        path_.push_back({x, y});
+    }
+
+    std::tuple<int32_t, int32_t> topNode()
+    {   
+        if(path_.empty())
+            throw std::logic_error("Path node empty");
+        return path_.back();
+    }
+
+    void pop()
+    {
+        if(path_.empty())
+            throw std::logic_error("Path node empty");
+        path_.pop_back();
+        return;
+    }
+
+    void reverse()
+    {
+        std::reverse(path_.begin(), path_.end());
+    }
+
+    void showPath()
+    {
+        for(auto it : path_)
+        {
+            std::cout << std::get<0>(it) << " : " << std::get<1>(it) << std::endl;
+        }
+    }
+  private:
+    std::vector<std::tuple<int32_t, int32_t>> path_;
+};
 
 class AStar
 {
@@ -19,7 +60,7 @@ class AStar
     {
         bool operator()(const Point& lhs, const Point& rhs)
         {
-            return lhs.expect_ < rhs.expect_;
+            return lhs.expect_ > rhs.expect_;
         }
     };
 
@@ -66,10 +107,10 @@ class AStar
                                                         std::vector<double>(graph[0].size(), 0.0));
     };
 
-    void run(int32_t xb, int32_t yb, int32_t xd, int32_t yd)
+    Path run(int32_t xb, int32_t yb, int32_t xd, int32_t yd)
     {
         if(graph_[xb][yb] == WALL)
-            return;
+            return {};
         travelNote_[xb][yb] = true;
         forecaseScore_[xb][yb] = actualScore_[xb][yb] + estimate(xb, yb, xd, yd);
         heap_.push({xb, yb, forecaseScore_[xb][yb]});
@@ -80,19 +121,21 @@ class AStar
             int cx{curPoint.x_}, cy{curPoint.y_};
             if(cx == xd && cy == yd)
             {
-                uint32_t x = xd, y = yd;
+                int32_t x = xd, y = yd;
+                Path path;
                 while(!(x == xb && y == yb))
                 {
-                    std::cout << x << "  " << y << std::endl;
-                    uint32_t tx = trace_[x][y].x_;
-                    uint32_t ty = trace_[x][y].y_;
+                    path.pushNode(x, y);
+                    int32_t tx = trace_[x][y].x_;
+                    int32_t ty = trace_[x][y].y_;
                     x = tx;
                     y = ty;
                 }
-                std::cout << x << "  " << y << std::endl;
-                return;     // found minipath
+                path.pushNode(x, y);
+                path.reverse();
+                return std::move(path);     // found minipath
             }
-            for(int dirIndex = 0; dirIndex < direction.size(); ++dirIndex)
+            for(int32_t dirIndex = 0; dirIndex < direction.size(); ++dirIndex)
             {
                 int32_t nx{cx + direction[dirIndex][0]}, ny{cy + direction[dirIndex][1]};
                 if(!validIndex(nx, ny))
@@ -100,15 +143,14 @@ class AStar
                 double forecase{0.0}, actual{0.0};
                 if(direction[dirIndex][0] & direction[dirIndex][1])
                 {
-                    forecase += 1;
+                    forecase += DIAGONAL;
                 }
                 else
                 {
-                    forecase += DIAGONAL;
+                    forecase += 1;
                 }
                 actual = forecase + actualScore_[cx][cy];
                 forecase += actual + estimate(nx, ny, xd, yd);
-
                 if(travelNote_[nx][ny] == false || actual < actualScore_[nx][ny])
                 {
                     trace_[nx][ny] = {cx, cy, forecase};
@@ -122,7 +164,7 @@ class AStar
                 }
             }
         }
-        return;
+        return {};
     }
 };
 
@@ -134,13 +176,14 @@ int main(int argc, char const *argv[])
 {
     char WALL = 0xff;
     std::vector<std::vector<char>> graph = 
-        {{1, 0, WALL, 0, 1,    1, 0},
-         {1, 0, WALL, 1, 0,    0, 1},
-         {1, 0, WALL, 1, 0,    0, 1},
-         {1, 0, WALL, 1, WALL, 0, 1},
-         {0, 1, 1,    0, WALL, 0, 1}};
+        {{1, 0, WALL, 0, 0,    0, 0},
+         {0, 1, WALL, 0, 0,    0, 0},
+         {0, 1, WALL, 0, 1,    0, 0},
+         {0, 1, WALL, 1, WALL, 1, 0},
+         {0, 0, 1,    0, WALL, 0, 1}};
 
     AStar astar(graph);
-    astar.run(0, 0, 4, 6);
+    auto path = astar.run(0, 0, 4, 6);
+    path.showPath();
     return 0;
 }
